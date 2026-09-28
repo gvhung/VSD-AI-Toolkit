@@ -1,0 +1,19 @@
+package service
+
+import (
+	"context"
+
+	"gorm.io/gorm"
+
+	"{{MODULE_ROOT}}/internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/model"
+)
+
+// I{{ComponentPascal}}Service defines the business logic contract for {{ComponentPascal}}
+type I{{ComponentPascal}}Service interface {
+	GetAll(ctx context.Context, tx *gorm.DB) ([]*model.{{EntityName}}, error)
+	Paginate(ctx context.Context, tx *gorm.DB, pageIndex, pageSize int, searchKey string) ([]*model.{{EntityName}}, int64, error)
+	GetByID(ctx context.Context, tx *gorm.DB, id string) (*model.{{EntityName}}, error)
+	Create(ctx context.Context, tx *gorm.DB, item *model.{{EntityName}}) (*model.{{EntityName}}, error)
+	Update(ctx context.Context, tx *gorm.DB, id string, item *model.{{EntityName}}) (*model.{{EntityName}}, error)
+	Delete(ctx context.Context, tx *gorm.DB, id string) error
+}

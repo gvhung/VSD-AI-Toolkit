@@ -1,0 +1,33 @@
+# Kế Hoạch Triển Khai Giao Diện (UI Implementation Plan)
+## Phân hệ: {{subsystem}} | Nhóm chức năng: {{group}}
+
+Tài liệu này xác định kế hoạch tổng thể triển khai giao diện Angular Client cho nhóm chức năng `{{group}}` thuộc phân hệ `{{subsystem}}` theo các quy chuẩn kiến trúc VSD Solution.
+
+---
+
+## 1. Danh Sách Các Thành Phần Giao Diện (Components)
+
+| STT | Thành Phần | Tên Tiếng Việt | Thực Thể (Entity) | Màn Hình Bảng | Hộp Thoại Modal | Tuyến Đường (Route) |
+|---|---|---|---|---|---|---|
+| 1 | `{{component}}` | {{ComponentVN}} | `{{EntityName}}` | `{{TableSelector}}` | `{{ModalSelector}}` | `{{group}}/{{component}}` |
+
+---
+
+## 2. Tiêu Chuẩn Kiến Trúc Frontend Bắt Buộc
+
+1. **Phân Tầng Mã Nguồn & Định Danh Chuẩn**:
+   - Selector bảng: `{{subsystem}}-{{group}}-{{component}}`
+   - Selector modal: `{{subsystem}}-{{group}}-modal-{{component}}`
+   - Route path: `{{group}}/{{component}}`
+2. **Quản Lý Trạng Thái & Luồng Tín Hiệu (Refresh Signal Bus)**:
+   - Sử dụng `Subject<void>` trong `{group}.service.ts` để đồng bộ làm mới danh sách sau khi thao tác trên modal.
+3. **Chiến Lược Cô Lập Đa Component (Multi-Component Isolation)**:
+   - File test tạm thời luôn đặt biệt lập theo từng component: `{component}/{component}_service_test.spec.ts`.
+   - Khi nghiệm thu component nào thì chỉ xóa đúng file test của component đó.
+4. **Cổng An Ninh Frontend**:
+   - MenuAuth RBAC (nút bấm & route guard).
+   - Chống XSS (không dùng bypassSecurityTrustHtml).
+   - Không lưu Secrets trong client code.
+   - Làm sạch form qua `enforceTextTransform`.
+   - Tiêu chuẩn an ninh OWASP Top 10 Web Client.
+   - Xóa bỏ test tạm thời sau nghiệm thu.

@@ -1,0 +1,105 @@
+# Đặc Tả Kỹ Thuật (Specs): {{ComponentVN}} ({{ComponentPascal}})
+
+Tài liệu này xác định chi tiết đặc tả nghiệp vụ, cấu trúc dữ liệu, ràng buộc an ninh và hợp đồng API cho thành phần **{{ComponentPascal}}** thuộc phân hệ `{{SUBSYSTEM}}`, nhóm `{{GROUP}}`.
+
+---
+
+## 1. Thông Tin Định Danh
+
+- **Phân hệ (Subsystem)**: `{{SUBSYSTEM}}`
+- **Nhóm chức năng (Group)**: `{{GROUP}}`
+- **Thành phần (Component)**: `{{COMPONENT}}`
+- **Tên thực thể (Entity Name)**: `{{EntityName}}`
+- **Tên hiển thị tiếng Việt**: `{{ComponentVN}}`
+- **Tên bảng CSDL (Physical Table)**: `{{TABLE_NAME}}`
+- **Module Root**: `{{MODULE_ROOT}}`
+- **Base Endpoint**: `/api/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}`
+
+---
+
+## 2. Mô Hình Dữ Liệu & Data Contract
+
+### 2.1 Bảng Thuộc Tính (Fields Specification)
+
+| Tên Trường (Go/JSON) | Kiểu Dữ Liệu | Thuộc Tính CSDL | Ràng Buộc Nghiệp Vụ | Diễn Giải |
+|---|---|---|---|---|
+| `id` | `*string` (UUID) | `type:uuid;not null;default:gen_random_uuid();primaryKey` | Tự động sinh | Khóa chính bản ghi |
+| `tenant_id` | `string` (UUID) | `type:uuid;not null;index` | Bắt buộc, Server gán | Định danh khách thuê (RLS) |
+| `org_id` | `*string` (UUID) | `type:uuid` | Tùy chọn | Định danh tổ chức/chi nhánh |
+| `code` | `string` | `type:varchar(50);not null;index` | Bắt buộc, Unique, Trim, Uppercase | Mã {{ComponentVN}} |
+| `name` | `string` | `type:varchar(255);not null` | Bắt buộc, Trim | Tên {{ComponentVN}} |
+| `description` | `*string` | `type:text` | Tùy chọn | Mô tả chi tiết |
+| `order_index` | `*int` | `type:integer;default:0` | Mặc định 0 | Thứ tự sắp xếp hiển thị |
+| `status` | `int` | `type:smallint;default:1` | 1: Hoạt động, 0: Khóa | Trạng thái bản ghi |
+| `created_at` | `time.Time` | `type:timestamp without time zone;autoCreateTime` | Server gán | Thời gian tạo |
+| `updated_at` | `time.Time` | `type:timestamp without time zone;autoUpdateTime` | Server gán | Thời gian cập nhật gần nhất |
+| `created_by` | `*string` | `type:varchar(255)` | Server gán từ JWT | Người tạo |
+| `updated_by` | `*string` | `type:varchar(255)` | Server gán từ JWT | Người sửa |
+| `removed_at` | `*time.Time` | `type:timestamp without time zone;index` | Server gán khi xóa mềm | Thời gian xóa mềm (Soft Delete) |
+| `removed_by` | `*string` | `type:varchar(255)` | Server gán từ JWT | Người xóa mềm |
+| `approved_by` | `*string` | `type:varchar(255)` | Tùy chọn | Người phê duyệt |
+
+### 2.2 Quy Tắc Hợp Lệ Dữ Liệu (Validation Rules)
+
+1. **Chuẩn hóa chuỗi (Sanitization)**:
+   - Cắt bỏ khoảng trắng thừa đầu/cuối đối với tất cả các chuỗi (`strings.TrimSpace`).
+   - Tự động chuyển đổi `code` thành chữ in hoa (`strings.ToUpper`).
+2. **Trường bắt buộc**:
+   - `code`: Không được rỗng (`Rule: required`). Lỗi trả về: `"Mã là bắt buộc"`.
+   - `name`: Không được rỗng (`Rule: required`). Lỗi trả về: `"Tên là bắt buộc"`.
+3. **Tính duy nhất (Unique)**:
+   - `code`: Không được trùng lặp trong phạm vi khách thuê (`Rule: unique`).
+   - Khi cập nhật (`Update`), kiểm tra `code` loại trừ `id` của bản ghi hiện tại.
+4. **Cấu trúc lỗi chi tiết chuẩn hóa**:
+   ```json
+   {
+     "success": false,
+     "errors": [
+       {
+         "field": "code",
+         "name": "Mã",
+         "message": "Mã không được trùng",
+         "rule": "unique"
+       }
+     ]
+   }
+   ```
+
+---
+
+## 3. Ràng Buộc An Ninh & Phân Quyền (Cybersecurity & RBAC)
+
+### 3.1 Row-Level Security (RLS)
+- Mọi thao tác truy vấn và ghi đều phải thực thi trong transaction có thiết lập định danh khách thuê:
+  ```sql
+  SET LOCAL app.current_tenant = '<tenant_id>';
+  ```
+- Bảng `{{TABLE_NAME}}` bắt buộc áp dụng thủ tục RLS PostgreSQL:
+  ```sql
+  CALL apply_rls_for_tables(ARRAY['{{TABLE_NAME}}']);
+  ```
+
+### 3.2 Phòng Chống IDOR (Insecure Direct Object Reference)
+- Server luôn tự động trích xuất `tenant_id` từ token JWT đã được kiểm thực hợp lệ.
+- Ghi đè bắt buộc `input.TenantID = tenantID` ở Handler.
+- Loại bỏ trường `tenant_id`, `id`, `created_at` khỏi map cập nhật ở tầng Service để triệt tiêu mọi khả năng can thiệp tenant.
+
+### 3.3 Phân Quyền Menu & Hành Động (MenuAuth RBAC)
+- Mã quyền truy cập chuẩn hóa:
+  - Xem danh sách / Chi tiết: `{{SUBSYSTEM}}:{{GROUP}}:{{COMPONENT}}:VIEW`
+  - Thêm mới: `{{SUBSYSTEM}}:{{GROUP}}:{{COMPONENT}}:CREATE`
+  - Chỉnh sửa: `{{SUBSYSTEM}}:{{GROUP}}:{{COMPONENT}}:UPDATE`
+  - Xóa mềm: `{{SUBSYSTEM}}:{{GROUP}}:{{COMPONENT}}:DELETE`
+
+---
+
+## 4. Đặc Tả 6 Endpoint RESTful Chuẩn Mực
+
+| STT | Phương Thức | Đường Dẫn | Mô Tả | Tham Số | Response Thành Công |
+|---|---|---|---|---|---|
+| 1 | `GET` | `/api/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}` | Lấy toàn bộ danh sách | Không | `200 OK` (Array) |
+| 2 | `GET` | `/api/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/paginate` | Phân trang & Tìm kiếm | `page`, `page_size`, `search` | `200 OK` (`items`, `total`) |
+| 3 | `GET` | `/api/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/:id` | Lấy chi tiết theo ID | `id` (UUID path param) | `200 OK` (Object) |
+| 4 | `POST` | `/api/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}` | Tạo mới bản ghi | Body (JSON) | `201 Created` |
+| 5 | `PUT` | `/api/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/:id` | Cập nhật theo ID | `id` (path), Body (JSON) | `200 OK` |
+| 6 | `DELETE` | `/api/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/:id` | Xóa mềm theo ID | `id` (path) | `200 OK` |

@@ -1,0 +1,49 @@
+package model
+
+import (
+	"time"
+)
+
+// {{EntityName}} represents the database entity for {{ComponentPascal}}
+type {{EntityName}} struct {
+	ID         *string    `gorm:"column:id;type:uuid;not null;default:gen_random_uuid();primaryKey" json:"id"`
+	OrgID      *string    `gorm:"column:org_id;type:uuid" json:"org_id"`
+	TenantID    string     `gorm:"column:tenant_id;type:uuid;not null;index" json:"tenant_id"`
+	Code        string     `gorm:"column:code;type:varchar(50);not null;index" json:"code"`
+	Name        string     `gorm:"column:name;type:varchar(255);not null" json:"name"`
+	Description *string    `gorm:"column:description;type:text" json:"description,omitempty"`
+	OrderIndex  *int       `gorm:"column:order_index;type:integer;default:0" json:"order_index"`
+	Status     int        `gorm:"column:status;type:smallint;default:1" json:"status"`
+	CreatedAt  time.Time  `gorm:"column:created_at;type:timestamp without time zone;autoCreateTime" json:"created_at"`
+	UpdatedAt  time.Time  `gorm:"column:updated_at;type:timestamp without time zone;autoUpdateTime" json:"updated_at"`
+	CreatedBy  *string    `gorm:"column:created_by;type:varchar(255)" json:"created_by"`
+	UpdatedBy  *string    `gorm:"column:updated_by;type:varchar(255)" json:"updated_by"`
+	RemovedAt  *time.Time `gorm:"column:removed_at;type:timestamp without time zone;index" json:"removed_at,omitempty"`
+	RemovedBy  *string    `gorm:"column:removed_by;type:varchar(255)" json:"removed_by,omitempty"`
+	ApprovedBy *string    `gorm:"column:approved_by;type:varchar(255)" json:"approved_by,omitempty"`
+}
+
+// TableName returns the physical table name in database
+func ({{EntityName}}) TableName() string {
+	return "{{TABLE_NAME}}"
+}
+
+// FieldError describes a specific validation error on a field
+type FieldError struct {
+	Field   string `json:"field"`
+	Name    string `json:"name"`
+	Message string `json:"message"`
+	Rule    string `json:"rule,omitempty"`
+}
+
+// ValidationError holds a list of field validation errors
+type ValidationError struct {
+	Errors []FieldError `json:"errors"`
+}
+
+func (v *ValidationError) Error() string {
+	if len(v.Errors) > 0 {
+		return v.Errors[0].Message
+	}
+	return "validation failed"
+}

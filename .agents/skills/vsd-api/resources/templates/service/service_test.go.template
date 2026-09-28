@@ -1,0 +1,141 @@
+// EPHEMERAL_TEST_FILE: True
+// LIFECYCLE: This file is generated strictly for the TDD Red-Green cycle.
+// As mandated by VSD-AI-Toolkit DoD rules, this file MUST BE DELETED upon 100% micro-task completion.
+
+package service_test
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"gorm.io/gorm"
+
+	"{{MODULE_ROOT}}/internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/model"
+	"{{MODULE_ROOT}}/internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/service"
+)
+
+// Mock{{ComponentPascal}}Query mocks repository methods
+type Mock{{ComponentPascal}}Query struct {
+	mock.Mock
+}
+
+func (m *Mock{{ComponentPascal}}Query) FindAll(ctx context.Context, tx *gorm.DB) ([]*model.{{EntityName}}, error) {
+	args := m.Called(ctx, tx)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*model.{{EntityName}}), args.Error(1)
+}
+
+func (m *Mock{{ComponentPascal}}Query) FindByID(ctx context.Context, tx *gorm.DB, id string) (*model.{{EntityName}}, error) {
+	args := m.Called(ctx, tx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.{{EntityName}}), args.Error(1)
+}
+
+func (m *Mock{{ComponentPascal}}Query) FindByCode(ctx context.Context, tx *gorm.DB, code string) (*model.{{EntityName}}, error) {
+	args := m.Called(ctx, tx, code)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*model.{{EntityName}}), args.Error(1)
+}
+
+func (m *Mock{{ComponentPascal}}Query) CountByCode(ctx context.Context, tx *gorm.DB, code string, excludeID string) (int64, error) {
+	args := m.Called(ctx, tx, code, excludeID)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *Mock{{ComponentPascal}}Query) Create(ctx context.Context, tx *gorm.DB, item *model.{{EntityName}}) error {
+	args := m.Called(ctx, tx, item)
+	return args.Error(0)
+}
+
+func (m *Mock{{ComponentPascal}}Query) Update(ctx context.Context, tx *gorm.DB, id string, updateData map[string]interface{}) (int64, error) {
+	args := m.Called(ctx, tx, id, updateData)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *Mock{{ComponentPascal}}Query) DeleteSoft(ctx context.Context, tx *gorm.DB, id string) (int64, error) {
+	args := m.Called(ctx, tx, id)
+	return args.Get(0).(int64), args.Error(1)
+}
+
+func (m *Mock{{ComponentPascal}}Query) Paginate(ctx context.Context, tx *gorm.DB, pageIndex, pageSize int, searchKey string) ([]*model.{{EntityName}}, int64, error) {
+	args := m.Called(ctx, tx, pageIndex, pageSize, searchKey)
+	if args.Get(0) == nil {
+		return nil, args.Get(1).(int64), args.Error(2)
+	}
+	return args.Get(0).([]*model.{{EntityName}}), args.Get(1).(int64), args.Error(2)
+}
+
+func TestService_BoundaryValidation_RED(t *testing.T) {
+	ctx := context.Background()
+	dummyDB := &gorm.DB{}
+
+	t.Run("fails when code is empty", func(t *testing.T) {
+		mockQuery := new(Mock{{ComponentPascal}}Query)
+		svc := service.NewService(mockQuery)
+
+		input := &model.{{EntityName}}{
+			Code: "",
+			Name: "Tên hợp lệ",
+		}
+
+		res, err := svc.Create(ctx, dummyDB, input)
+		assert.Error(t, err)
+		assert.Nil(t, res)
+
+		var valErr *model.ValidationError
+		assert.True(t, errors.As(err, &valErr))
+	})
+
+	t.Run("fails when name is empty", func(t *testing.T) {
+		mockQuery := new(Mock{{ComponentPascal}}Query)
+		svc := service.NewService(mockQuery)
+
+		input := &model.{{EntityName}}{
+			Code: "VALID_CODE",
+			Name: "   ",
+		}
+
+		res, err := svc.Create(ctx, dummyDB, input)
+		assert.Error(t, err)
+		assert.Nil(t, res)
+	})
+
+	t.Run("fails when code is duplicate", func(t *testing.T) {
+		mockQuery := new(Mock{{ComponentPascal}}Query)
+		mockQuery.On("CountByCode", ctx, dummyDB, "DUP_CODE", "").Return(int64(1), nil)
+
+		svc := service.NewService(mockQuery)
+		input := &model.{{EntityName}}{
+			Code: "DUP_CODE",
+			Name: "Tên hợp lệ",
+		}
+
+		res, err := svc.Create(ctx, dummyDB, input)
+		assert.Error(t, err)
+		assert.Nil(t, res)
+		mockQuery.AssertExpectations(t)
+	})
+
+	t.Run("defensive check: fails when tx is nil", func(t *testing.T) {
+		mockQuery := new(Mock{{ComponentPascal}}Query)
+		svc := service.NewService(mockQuery)
+
+		input := &model.{{EntityName}}{
+			Code: "VALID_CODE",
+			Name: "Tên hợp lệ",
+		}
+
+		res, err := svc.Create(ctx, nil, input)
+		assert.Error(t, err)
+		assert.Nil(t, res)
+	})
+}

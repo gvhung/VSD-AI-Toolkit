@@ -1,0 +1,187 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"strings"
+	"time"
+
+	"gorm.io/gorm"
+
+	"{{MODULE_ROOT}}/internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/model"
+	"{{MODULE_ROOT}}/internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/query"
+)
+
+type {{ComponentCamel}}Service struct {
+	q query.I{{ComponentPascal}}Query
+}
+
+// NewService instantiates a new {{ComponentPascal}} service
+func NewService(q query.I{{ComponentPascal}}Query) I{{ComponentPascal}}Service {
+	return &{{ComponentCamel}}Service{q: q}
+}
+
+func (s *{{ComponentCamel}}Service) validate(ctx context.Context, tx *gorm.DB, item *model.{{EntityName}}, isUpdate bool) error {
+	if tx == nil {
+		return errors.New("database transaction is required")
+	}
+	if item == nil {
+		return &model.ValidationError{
+			Errors: []model.FieldError{
+				{Field: "item", Message: "Dữ liệu không được để trống", Rule: "required"},
+			},
+		}
+	}
+
+	var validationErrors []model.FieldError
+
+	// Chuẩn hóa dữ liệu: TrimSpace và In hoa mã
+	item.Code = strings.ToUpper(strings.TrimSpace(item.Code))
+	item.Name = strings.TrimSpace(item.Name)
+
+	if item.Code == "" {
+		validationErrors = append(validationErrors, model.FieldError{
+			Field:   "code",
+			Name:    "Mã",
+			Message: "Mã là bắt buộc",
+			Rule:    "required",
+		})
+	}
+
+	if item.Name == "" {
+		validationErrors = append(validationErrors, model.FieldError{
+			Field:   "name",
+			Name:    "Tên",
+			Message: "Tên là bắt buộc",
+			Rule:    "required",
+		})
+	}
+
+	// Check code uniqueness
+	if item.Code != "" {
+		excludeID := ""
+		if isUpdate && item.ID != nil {
+			excludeID = *item.ID
+		}
+		count, err := s.q.CountByCode(ctx, tx, item.Code, excludeID)
+		if err != nil {
+			return err
+		}
+		if count > 0 {
+			validationErrors = append(validationErrors, model.FieldError{
+				Field:   "code",
+				Name:    "Mã",
+				Message: "Mã không được trùng",
+				Rule:    "unique",
+			})
+		}
+	}
+
+	if len(validationErrors) > 0 {
+		return &model.ValidationError{Errors: validationErrors}
+	}
+
+	return nil
+}
+
+func (s *{{ComponentCamel}}Service) GetAll(ctx context.Context, tx *gorm.DB) ([]*model.{{EntityName}}, error) {
+	if tx == nil {
+		return nil, errors.New("database transaction is required")
+	}
+	return s.q.FindAll(ctx, tx)
+}
+
+func (s *{{ComponentCamel}}Service) Paginate(ctx context.Context, tx *gorm.DB, pageIndex, pageSize int, searchKey string) ([]*model.{{EntityName}}, int64, error) {
+	if tx == nil {
+		return nil, 0, errors.New("database transaction is required")
+	}
+	return s.q.Paginate(ctx, tx, pageIndex, pageSize, searchKey)
+}
+
+func (s *{{ComponentCamel}}Service) GetByID(ctx context.Context, tx *gorm.DB, id string) (*model.{{EntityName}}, error) {
+	if tx == nil {
+		return nil, errors.New("database transaction is required")
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil, errors.New("invalid id")
+	}
+	item, err := s.q.FindByID(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, errors.New("bản ghi không tồn tại")
+	}
+	return item, nil
+}
+
+func (s *{{ComponentCamel}}Service) Create(ctx context.Context, tx *gorm.DB, item *model.{{EntityName}}) (*model.{{EntityName}}, error) {
+	if err := s.validate(ctx, tx, item, false); err != nil {
+		return nil, err
+	}
+	item.CreatedAt = time.Now()
+	item.UpdatedAt = time.Now()
+	if err := s.q.Create(ctx, tx, item); err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
+func (s *{{ComponentCamel}}Service) Update(ctx context.Context, tx *gorm.DB, id string, item *model.{{EntityName}}) (*model.{{EntityName}}, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil, errors.New("invalid id")
+	}
+	item.ID = &id
+	if err := s.validate(ctx, tx, item, true); err != nil {
+		return nil, err
+	}
+
+	existing, err := s.q.FindByID(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+	if existing == nil {
+		return nil, errors.New("bản ghi không tồn tại")
+	}
+
+	item.UpdatedAt = time.Now()
+
+	// Convert to map for safe update of default/zero values
+	data, err := json.Marshal(item)
+	if err != nil {
+		return nil, err
+	}
+	var updateMap map[string]interface{}
+	if err := json.Unmarshal(data, &updateMap); err != nil {
+		return nil, err
+	}
+	delete(updateMap, "id")
+	delete(updateMap, "created_at")
+	delete(updateMap, "tenant_id") // Prevent IDOR tenant tampering
+
+	_, err = s.q.Update(ctx, tx, id, updateMap)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.q.FindByID(ctx, tx, id)
+}
+
+func (s *{{ComponentCamel}}Service) Delete(ctx context.Context, tx *gorm.DB, id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return errors.New("invalid id")
+	}
+	existing, err := s.q.FindByID(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	if existing == nil {
+		return errors.New("bản ghi không tồn tại")
+	}
+	_, err = s.q.DeleteSoft(ctx, tx, id)
+	return err
+}

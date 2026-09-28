@@ -1,0 +1,100 @@
+# Bảng Phân Rã Micro-Tasks: {{ComponentVN}} ({{ComponentPascal}})
+
+Tài liệu này theo dõi tiến độ thực thi tuần tự 7 micro-tasks theo phương pháp **Spec-Driven Development** và **Continuous Auto-Advance Pipeline** cho component `{{COMPONENT}}`.
+
+---
+
+## Bảng Tiến Độ Tổng Thể
+
+- [ ] **Task 1: Đặc Tả Nghiệp Vụ & Kế Hoạch Kỹ Thuật (SDD)**
+- [ ] **Task 2: Migration DDL & Row-Level Security (PostgreSQL)**
+- [ ] **Task 3: Tầng Model & Cấu Trúc ValidationError**
+- [ ] **Task 4: Tầng Query Repository & Defensive Checks**
+- [ ] **Task 5: Ephemeral Test-First & Tầng Service (TDD Red-Green)**
+- [ ] **Task 6: Tầng Handler (Gin Controller, RLS, IDOR & Godoc)**
+- [ ] **Task 7: Tầng Router, Cybersecurity Gate Audit & Cleanup Test**
+
+---
+
+## Chi Tiết Từng Micro-Task
+
+### Task 1: Đặc Tả Nghiệp Vụ & Kế Hoạch Kỹ Thuật (SDD)
+- **Mục tiêu**: Xây dựng tài liệu kiến trúc phân cấp tại `docs/`.
+- **Tệp đầu ra**:
+  - `docs/{{SUBSYSTEM}}/PLAN-{{SUBSYSTEM}}-{{GROUP}}.md`
+  - `docs/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}_specs.md`
+  - `docs/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}_tasks.md`
+- **Tiêu chí nghiệm thu (DoD)**:
+  - Khai báo đầy đủ thông tin định danh, cấu trúc bảng dữ liệu, quy tắc validation, và 6 RESTful endpoints.
+
+---
+
+### Task 2: Migration DDL & Row-Level Security (PostgreSQL)
+- **Mục tiêu**: Tạo script DDL an toàn cho PostgreSQL.
+- **Tệp đầu ra**:
+  - `docs/{{SUBSYSTEM}}/{{GROUP}}/sql/{{SUBSYSTEM}}_{GROUP}_{COMPONENT}.sql`
+- **Tiêu chí nghiệm thu (DoD)**:
+  - Khóa chính UUID (`gen_random_uuid()`).
+  - Cột `tenant_id UUID NOT NULL` (tuyệt đối không dùng varchar).
+  - Cột `removed_at TIMESTAMP WITHOUT TIME ZONE` cho cơ chế xóa mềm.
+  - Gọi thủ tục an ninh `CALL apply_rls_for_tables(ARRAY['{{TABLE_NAME}}']);`.
+
+---
+
+### Task 3: Tầng Model & Cấu Trúc ValidationError
+- **Mục tiêu**: Xây dựng struct thực thể và cấu trúc lỗi chuẩn hóa.
+- **Tệp đầu ra**:
+  - `internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/model/model.go`
+- **Tiêu chí nghiệm thu (DoD)**:
+  - Khai báo đầy đủ GORM tags và JSON tags.
+  - Cung cấp hàm `TableName()` trả về `{{TABLE_NAME}}`.
+  - Khai báo struct `FieldError` và `ValidationError`.
+
+---
+
+### Task 4: Tầng Query Repository & Defensive Checks
+- **Mục tiêu**: Cung cấp interface `I{{ComponentPascal}}Query` và struct hiện thực an toàn.
+- **Tệp đầu ra**:
+  - `internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/query/query.go`
+- **Tiêu chí nghiệm thu (DoD)**:
+  - Đầy đủ 8 phương thức: `FindAll`, `FindByID`, `FindByCode`, `CountByCode`, `Create`, `Update`, `DeleteSoft`, `Paginate`.
+  - Kiểm tra phòng thủ `if tx == nil { return ..., errors.New(...) }`.
+  - 100% truy vấn dùng tham số hóa `?`, cấm nối chuỗi SQL.
+
+---
+
+### Task 5: Ephemeral Test-First & Tầng Service (TDD Red-Green)
+- **Mục tiêu**: Viết Unit Test biên dữ liệu trước (TDD RED), sau đó hoàn thiện logic nghiệp vụ (GREEN).
+- **Tệp đầu ra**:
+  - `internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/service/service_test.go` (đánh dấu `// EPHEMERAL_TEST_FILE: True`)
+  - `internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/service/interface.go`
+  - `internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/service/service.go`
+- **Tiêu chí nghiệm thu (DoD)**:
+  - `service_test.go` kiểm tra: Mã rỗng, Tên rỗng, Mã trùng lặp, Transaction nil.
+  - Chạy test ban đầu thất bại (RED), sau khi triển khai service phải thành công 100% (GREEN).
+  - Chuẩn hóa chuỗi bằng `TrimSpace`, tự động in hoa mã.
+  - Cập nhật an toàn qua map, xóa bỏ các trường nhạy cảm (`tenant_id`, `id`, `created_at`).
+
+---
+
+### Task 6: Tầng Handler (Gin Controller, RLS, IDOR & Godoc)
+- **Mục tiêu**: Xây dựng controller tiếp nhận HTTP request và tích hợp an ninh.
+- **Tệp đầu ra**:
+  - `internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/handler/handler.go`
+- **Tiêu chí nghiệm thu (DoD)**:
+  - Mọi thao tác chạy trong `executeWithTenant` gọi `SET LOCAL app.current_tenant = ?`.
+  - Chống IDOR: Tự động ghi đè `input.TenantID = tenantID` từ JWT.
+  - Che giấu lỗi hệ thống (Data Masking), không trả stack trace CSDL ra ngoài.
+  - Khai báo đầy đủ Swagger Godoc annotations cho cả 6 endpoints.
+
+---
+
+### Task 7: Tầng Router, Cybersecurity Gate Audit & Cleanup Test
+- **Mục tiêu**: Đăng ký endpoint, chạy kiểm tra các cổng an ninh và dọn dẹp file test tạm thời.
+- **Tệp đầu ra**:
+  - `internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/router{{ComponentPascal}}.go`
+- **Tiêu chí nghiệm thu (DoD)**:
+  - Gọi `AutoMigrate` và `CALL apply_rls_for_tables(...)` trước khi mount routes.
+  - Đăng ký đúng 6 endpoints RESTful chuẩn.
+  - Vượt qua các cổng an ninh của Anthropic Cybersecurity Gate.
+  - Tự động xóa file `service_test.go` sau khi hoàn tất toàn bộ micro-tasks.

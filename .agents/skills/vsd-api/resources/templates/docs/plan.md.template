@@ -1,0 +1,32 @@
+# Kế Hoạch Triển Khai Kỹ Thuật (Implementation Plan)
+## Phân hệ: {{SUBSYSTEM}} | Nhóm chức năng: {{GROUP}}
+
+Tài liệu này xác định kế hoạch tổng thể triển khai kỹ thuật cho nhóm chức năng `{{GROUP}}` thuộc phân hệ `{{SUBSYSTEM}}` theo các quy chuẩn kiến trúc VSD Solution.
+
+---
+
+## 1. Danh Sách Các Thành Phần (Components)
+
+| STT | Thành Phần | Tên Tiếng Việt | Thực Thể (Entity) | Tên Bảng CSDL | Trạng Thái |
+|---|---|---|---|---|---|
+| 1 | `{{COMPONENT}}` | {{ComponentVN}} | `{{EntityName}}` | `{{TABLE_NAME}}` | Sẵn sàng |
+
+---
+
+## 2. Tiêu Chuẩn Kiến Trúc Bắt Buộc
+
+1. **Phân Tầng Mã Nguồn Nghiêm Ngặt**:
+   - `internal/{{SUBSYSTEM}}/router{{SubsystemPascal}}.go`
+   - `internal/{{SUBSYSTEM}}/{{GROUP}}/router{{GroupPascal}}.go`
+   - `internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/` (model, query, service, handler, router)
+2. **PostgreSQL Row-Level Security (RLS)**:
+   - 100% các bảng phải có trường `tenant_id UUID NOT NULL` và kích hoạt thủ tục `CALL apply_rls_for_tables(...)`.
+   - 100% thao tác qua Handler phải thực thi lệnh `SET LOCAL app.current_tenant = ?` trong transaction.
+3. **Quy Trình TDD & Ephemeral Test**:
+   - Bắt buộc viết test kiểm tra biên (`service_test.go`) trước khi sinh logic Service.
+   - Bắt buộc xóa bỏ test tạm thời sau khi nghiệm thu toàn bộ 7 micro-tasks.
+4. **Cổng An Ninh Anthropic Cybersecurity**:
+   - Chống SQLi (không nối chuỗi SQL).
+   - Chống IDOR (ghi đè `TenantID`, xóa `tenant_id` khi update).
+   - Bảo vệ Secrets & JWT (đọc từ ENV).
+   - Đầy đủ 6 endpoints RESTful với Godoc Swagger annotations.

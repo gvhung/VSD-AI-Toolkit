@@ -1,0 +1,117 @@
+import { Component, OnInit, Inject, DestroyRef } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { MatDialogRef, MAT_DIALOG_DATA, MatDialogModule } from '@angular/material/dialog';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { buildFormFromClass } from 'app/core/form/form-builder.util';
+import { FormErrorUtil, getErrorMessage } from 'app/core/form/form-error.util';
+import { enforceTextTransform, forceValidatorRecognition } from 'app/core/form/form.util';
+import { {{GroupPascal}}Service } from '../../{{group}}.service';
+import { {{EntityName}} } from '../../../{{subsystem}}.type';
+
+@Component({
+  selector: '{{ModalSelector}}',
+  templateUrl: './modal-{{component}}.component.html',
+  styleUrls: ['./modal-{{component}}.component.scss'],
+  standalone: true,
+  imports: [
+    CommonModule,
+    ReactiveFormsModule,
+    MatDialogModule,
+    MatButtonModule,
+    MatIconModule,
+    MatFormFieldModule,
+    MatInputModule
+  ]
+})
+export class Modal{{ComponentPascal}}Component implements OnInit {
+  form!: FormGroup;
+  isEdit: boolean = false;
+  isSubmitting: boolean = false;
+
+  readonly FIELD_LABELS: Record<string, string> = {
+    code: 'Mã {{ComponentVN}}',
+    name: 'Tên {{ComponentVN}}',
+    order_index: 'Thứ tự',
+    description: 'Mô tả'
+  };
+
+  constructor(
+    private _fb: FormBuilder,
+    private _service: {{GroupPascal}}Service,
+    private _dialogRef: MatDialogRef<Modal{{ComponentPascal}}Component>,
+    private _snackBar: MatSnackBar,
+    private _destroyRef: DestroyRef,
+    @Inject(MAT_DIALOG_DATA) public data: { id?: string; item?: {{EntityName}} }
+  ) {}
+
+  ngOnInit(): void {
+    this.isEdit = !!this.data?.id;
+    this.form = buildFormFromClass(this._fb, {{EntityName}} as any);
+
+    const configFields = [
+      { field: 'code', required: true, uppercase: true, noAccent: true, noSpecialChar: true, maxLength: 50 },
+      { field: 'name', required: true, maxLength: 255 },
+      { field: 'description', maxLength: 1000 }
+    ];
+
+    enforceTextTransform(this.form, configFields, this._destroyRef);
+    forceValidatorRecognition(this.form);
+
+    if (this.isEdit && this.data.item) {
+      this.form.patchValue(this.data.item);
+    }
+  }
+
+  save(closeOnSave: boolean = true): void {
+    if (!this.form) return;
+    if (this.form.invalid) {
+      this.form.markAllAsTouched();
+      FormErrorUtil.showFormErrors(this.form, this._snackBar, this.FIELD_LABELS, (control) => getErrorMessage(control));
+      return;
+    }
+
+    this.isSubmitting = true;
+    const payload = this.form.value;
+
+    const request$ = this.isEdit && this.data.id
+      ? this._service.update{{ComponentPascal}}(this.data.id, payload)
+      : this._service.create{{ComponentPascal}}(payload);
+
+    request$.subscribe({
+      next: () => {
+        this.isSubmitting = false;
+        this._snackBar.open(
+          this.isEdit ? 'Cập nhật {{ComponentVN}} thành công' : 'Thêm mới {{ComponentVN}} thành công',
+          'Đóng',
+          { duration: 2500 }
+        );
+        this._service.triggerRefresh{{ComponentPascal}}s();
+
+        if (closeOnSave) {
+          this._dialogRef.close(true);
+        } else {
+          this.form.reset({ order_index: 0 });
+          this.isEdit = false;
+        }
+      },
+      error: (err) => {
+        this.isSubmitting = false;
+        if (err.status === 400 && err.error?.errors) {
+          FormErrorUtil.applyServerErrors(this.form, err.error.errors, this._snackBar);
+        } else {
+          const msg = err?.error?.message || 'Có lỗi xảy ra khi lưu dữ liệu';
+          this._snackBar.open(msg, 'Đóng', { duration: 3000 });
+        }
+      }
+    });
+  }
+
+  close(): void {
+    this._dialogRef.close(false);
+  }
+}

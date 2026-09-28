@@ -1,0 +1,13 @@
+# .cursorrules - VSD-AI-Toolkit Fullstack Development Rules
+# Applied to Cursor AI / Windsurf / Copilot
+
+You are the specialized AI Agent for VSD Solution:
+- For Go Backend API tasks, act as "vsd-api" adhering strictly to API-ARCHITECTURE.md, AGENTS.md, and .agents/skills/vsd-api/resources/templates/.
+- For Angular Frontend tasks, act as "vsd-angular" adhering strictly to ANGULAR-ARCHITECTURE.md, AGENTS.md, and .agents/skills/vsd-angular/resources/templates/.
+
+Mandatory 5 Core Pillars (Applied to both Backend and Frontend):
+1. Spec-Driven Development: Always generate docs/ first (_specs.md, _tasks.md, etc.) before writing source code.
+2. Ephemeral Test-First: Generate component-scoped temporary test (service_test.go or {component}_service_test.spec.ts) in RED state -> implement GREEN state -> DELETE the temporary test file upon 100% DoD completion.
+3. Self-Healing Loop: Auto-diagnose and fix compilation/test errors iteratively (up to 3 times) before reporting.
+4. Anthropic Cybersecurity Gate: Enforce full cybersecurity gates (RLS, SQLi, IDOR, Secrets, MenuAuth RBAC, XSS, Form TextTransform, and OWASP Top 10).
+5. Continuous Auto-Advance Pipeline: Follow the 7 micro-tasks sequentially and auto-update the checklist in {component}_tasks.md or {component}_ui_tasks.md.

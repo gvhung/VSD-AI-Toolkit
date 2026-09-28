@@ -1,0 +1,105 @@
+import { Injectable } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable, Subject, BehaviorSubject, map, tap } from 'rxjs';
+import { BackEndConfig } from 'app/app.config';
+import { {{EntityName}} } from '../{{subsystem}}.type';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class {{GroupPascal}}Service {
+  private readonly baseUrl = `${BackEndConfig.API_URL}api/{{subsystem}}/{{group}}/{{component}}`;
+
+  private _data = new BehaviorSubject<{{EntityName}}[]>([]);
+  readonly data$: Observable<{{EntityName}}[]> = this._data.asObservable();
+
+  private _refresh{{ComponentPascal}}s = new Subject<void>();
+  readonly refresh{{ComponentPascal}}s$: Observable<void> = this._refresh{{ComponentPascal}}s.asObservable();
+
+  constructor(private _http: HttpClient) {}
+
+  triggerRefresh{{ComponentPascal}}s(): void {
+    this._refresh{{ComponentPascal}}s.next();
+  }
+
+  /**
+   * Lấy toàn bộ danh sách
+   */
+  getAll{{ComponentPascal}}s(): Observable<{{EntityName}}[]> {
+    return this._http.get<any>(this.baseUrl).pipe(
+      map(res => (res && res.data ? res.data : (Array.isArray(res) ? res : []))),
+      tap(data => this._data.next(data || []))
+    );
+  }
+
+  /**
+   * Phân trang danh sách
+   */
+  get{{ComponentPascal}}sPaginated(params: { page: number; pageSize: number; search?: string }): Observable<{ items: {{EntityName}}[]; total: number }> {
+    let httpParams = new HttpParams()
+      .set('page', params.page.toString())
+      .set('page_size', params.pageSize.toString());
+
+    if (params.search) {
+      httpParams = httpParams.set('search', params.search);
+    }
+
+    return this._http.get<any>(`${this.baseUrl}/paginate`, { params: httpParams }).pipe(
+      map(res => {
+        if (res?.data?.items && Array.isArray(res.data.items)) {
+          return { items: res.data.items, total: res.data.total ?? res.data.items.length };
+        }
+        if (Array.isArray(res?.data)) {
+          return { items: res.data, total: res.total ?? res.data.length };
+        }
+        if (Array.isArray(res)) {
+          return { items: res, total: res.length };
+        }
+        if (Array.isArray(res?.items)) {
+          return { items: res.items, total: res.total ?? res.items.length };
+        }
+        return { items: [], total: 0 };
+      }),
+      tap(result => this._data.next(result.items || []))
+    );
+  }
+
+  /**
+   * Lấy chi tiết bản ghi theo ID
+   */
+  get{{ComponentPascal}}ById(id: string): Observable<{{EntityName}}> {
+    return this._http.get<any>(`${this.baseUrl}/${id}`).pipe(
+      map(res => res?.data || res)
+    );
+  }
+
+  /**
+   * Thêm mới bản ghi
+   */
+  create{{ComponentPascal}}(payload: Partial<{{EntityName}}>): Observable<{{EntityName}}> {
+    return this._http.post<any>(this.baseUrl, payload).pipe(
+      map(res => res?.data || res),
+      tap(() => this.triggerRefresh{{ComponentPascal}}s())
+    );
+  }
+
+  /**
+   * Cập nhật bản ghi
+   */
+  update{{ComponentPascal}}(id: string, payload: Partial<{{EntityName}}>): Observable<{{EntityName}}> {
+    return this._http.put<any>(`${this.baseUrl}/${id}`, payload).pipe(
+      map(res => res?.data || res),
+      tap(() => this.triggerRefresh{{ComponentPascal}}s())
+    );
+  }
+
+  /**
+   * Xóa bản ghi
+   */
+  delete{{ComponentPascal}}(id: string): Observable<boolean> {
+    return this._http.delete<any>(`${this.baseUrl}/${id}`).pipe(
+      map(res => (res?.success !== undefined ? res.success : true)),
+      tap(() => this.triggerRefresh{{ComponentPascal}}s())
+    );
+  }
+}

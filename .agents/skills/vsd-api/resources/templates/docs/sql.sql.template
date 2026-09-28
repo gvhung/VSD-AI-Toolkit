@@ -1,0 +1,39 @@
+-- =============================================================================
+-- Migration DDL: {{ComponentVN}} ({{ComponentPascal}})
+-- Table: {{TABLE_NAME}}
+-- Subsystem: {{SUBSYSTEM}} | Group: {{GROUP}} | Component: {{COMPONENT}}
+-- Standards: VSD-AI-Toolkit (API-ARCHITECTURE.md)
+-- =============================================================================
+
+-- 1. Create table with UUID primary key and PostgreSQL Row-Level Security readiness
+CREATE TABLE IF NOT EXISTS {{TABLE_NAME}} (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    tenant_id UUID NOT NULL,
+    org_id UUID,
+    code VARCHAR(50) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    order_index INTEGER DEFAULT 0,
+    status SMALLINT DEFAULT 1,
+    created_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+    created_by VARCHAR(255),
+    updated_by VARCHAR(255),
+    removed_at TIMESTAMP WITHOUT TIME ZONE,
+    removed_by VARCHAR(255),
+    approved_by VARCHAR(255)
+);
+
+-- 2. Indexes for performance and multi-tenant query optimization
+CREATE INDEX IF NOT EXISTS idx_{{TABLE_NAME}}_tenant_id ON {{TABLE_NAME}}(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_{{TABLE_NAME}}_code ON {{TABLE_NAME}}(code);
+CREATE INDEX IF NOT EXISTS idx_{{TABLE_NAME}}_removed_at ON {{TABLE_NAME}}(removed_at);
+
+-- 3. Apply PostgreSQL Row-Level Security (RLS) Procedure
+-- Enforces tenant isolation where app.current_tenant matches record tenant_id
+CALL apply_rls_for_tables(ARRAY['{{TABLE_NAME}}']);
+
+-- 4. Comment on table and critical columns
+COMMENT ON TABLE {{TABLE_NAME}} IS 'Bảng dữ liệu {{ComponentVN}} thuộc phân hệ {{SUBSYSTEM}}';
+COMMENT ON COLUMN {{TABLE_NAME}}.tenant_id IS 'UUID định danh khách thuê (Row-Level Security)';
+COMMENT ON COLUMN {{TABLE_NAME}}.removed_at IS 'Dấu thời gian xóa mềm (Soft Delete)';

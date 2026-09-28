@@ -1,0 +1,41 @@
+import { FormField } from 'app/core/form/form-field.decorator';
+import { BaseEntity } from 'app/core/models/base-entity.model';
+
+export class {{EntityName}} extends BaseEntity {
+  @FormField({
+    label: 'Mã {{ComponentVN}}',
+    required: true,
+    uppercase: true,
+    noAccent: true,
+    noSpecialChar: true,
+    maxLength: 50
+  })
+  code!: string;
+
+  @FormField({
+    label: 'Tên {{ComponentVN}}',
+    required: true,
+    maxLength: 255
+  })
+  name!: string;
+
+  @FormField({
+    label: 'Thứ tự',
+    type: 'number',
+    defaultValue: 0
+  })
+  order_index?: number;
+
+  @FormField({
+    label: 'Mô tả',
+    maxLength: 2000
+  })
+  description?: string;
+
+  constructor(data?: Partial<{{EntityName}}>) {
+    super();
+    if (data) {
+      Object.assign(this, data);
+    }
+  }
+}

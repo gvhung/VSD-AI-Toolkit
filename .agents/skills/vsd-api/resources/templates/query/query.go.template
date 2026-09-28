@@ -1,0 +1,147 @@
+package query
+
+import (
+	"context"
+	"errors"
+
+	"gorm.io/gorm"
+
+	"{{MODULE_ROOT}}/internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/model"
+)
+
+// I{{ComponentPascal}}Query defines the repository operations for {{ComponentPascal}}
+type I{{ComponentPascal}}Query interface {
+	FindAll(ctx context.Context, tx *gorm.DB) ([]*model.{{EntityName}}, error)
+	FindByID(ctx context.Context, tx *gorm.DB, id string) (*model.{{EntityName}}, error)
+	FindByCode(ctx context.Context, tx *gorm.DB, code string) (*model.{{EntityName}}, error)
+	CountByCode(ctx context.Context, tx *gorm.DB, code string, excludeID string) (int64, error)
+	Create(ctx context.Context, tx *gorm.DB, item *model.{{EntityName}}) error
+	Update(ctx context.Context, tx *gorm.DB, id string, updateData map[string]interface{}) (int64, error)
+	DeleteSoft(ctx context.Context, tx *gorm.DB, id string) (int64, error)
+	Paginate(ctx context.Context, tx *gorm.DB, pageIndex, pageSize int, searchKey string) ([]*model.{{EntityName}}, int64, error)
+}
+
+type {{ComponentCamel}}Query struct{}
+
+// NewQuery initializes a new Query repository implementation
+func NewQuery() I{{ComponentPascal}}Query {
+	return &{{ComponentCamel}}Query{}
+}
+
+// getDB performs defensive nil check on transaction context
+func (q *{{ComponentCamel}}Query) getDB(tx *gorm.DB) (*gorm.DB, error) {
+	if tx == nil {
+		return nil, errors.New("database transaction is required and cannot be nil")
+	}
+	return tx.Model(&model.{{EntityName}}{}).Where("removed_at IS NULL"), nil
+}
+
+func (q *{{ComponentCamel}}Query) FindAll(ctx context.Context, tx *gorm.DB) ([]*model.{{EntityName}}, error) {
+	db, err := q.getDB(tx)
+	if err != nil {
+		return nil, err
+	}
+	var items []*model.{{EntityName}}
+	err = db.WithContext(ctx).Order("order_index ASC, created_at DESC").Find(&items).Error
+	return items, err
+}
+
+func (q *{{ComponentCamel}}Query) FindByID(ctx context.Context, tx *gorm.DB, id string) (*model.{{EntityName}}, error) {
+	db, err := q.getDB(tx)
+	if err != nil {
+		return nil, err
+	}
+	var item model.{{EntityName}}
+	err = db.WithContext(ctx).Where("id = ?", id).First(&item).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (q *{{ComponentCamel}}Query) FindByCode(ctx context.Context, tx *gorm.DB, code string) (*model.{{EntityName}}, error) {
+	db, err := q.getDB(tx)
+	if err != nil {
+		return nil, err
+	}
+	var item model.{{EntityName}}
+	err = db.WithContext(ctx).Where("code = ?", code).First(&item).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (q *{{ComponentCamel}}Query) CountByCode(ctx context.Context, tx *gorm.DB, code string, excludeID string) (int64, error) {
+	db, err := q.getDB(tx)
+	if err != nil {
+		return 0, err
+	}
+	query := db.WithContext(ctx).Where("code = ?", code)
+	if excludeID != "" {
+		query = query.Where("id <> ?", excludeID)
+	}
+	var count int64
+	err = query.Count(&count).Error
+	return count, err
+}
+
+func (q *{{ComponentCamel}}Query) Create(ctx context.Context, tx *gorm.DB, item *model.{{EntityName}}) error {
+	if tx == nil {
+		return errors.New("database transaction is required")
+	}
+	if item == nil {
+		return errors.New("cannot create nil item")
+	}
+	return tx.WithContext(ctx).Create(item).Error
+}
+
+func (q *{{ComponentCamel}}Query) Update(ctx context.Context, tx *gorm.DB, id string, updateData map[string]interface{}) (int64, error) {
+	db, err := q.getDB(tx)
+	if err != nil {
+		return 0, err
+	}
+	res := db.WithContext(ctx).Where("id = ?", id).Updates(updateData)
+	return res.RowsAffected, res.Error
+}
+
+func (q *{{ComponentCamel}}Query) DeleteSoft(ctx context.Context, tx *gorm.DB, id string) (int64, error) {
+	db, err := q.getDB(tx)
+	if err != nil {
+		return 0, err
+	}
+	res := db.WithContext(ctx).Where("id = ?", id).Update("removed_at", gorm.Expr("NOW()"))
+	return res.RowsAffected, res.Error
+}
+
+func (q *{{ComponentCamel}}Query) Paginate(ctx context.Context, tx *gorm.DB, pageIndex, pageSize int, searchKey string) ([]*model.{{EntityName}}, int64, error) {
+	db, err := q.getDB(tx)
+	if err != nil {
+		return nil, 0, err
+	}
+	query := db.WithContext(ctx)
+	if searchKey != "" {
+		key := "%" + searchKey + "%"
+		query = query.Where("code ILIKE ? OR name ILIKE ?", key, key)
+	}
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	if pageIndex < 1 {
+		pageIndex = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	offset := (pageIndex - 1) * pageSize
+	var items []*model.{{EntityName}}
+	err = query.Order("order_index ASC, created_at DESC").Limit(pageSize).Offset(offset).Find(&items).Error
+	return items, total, err
+}

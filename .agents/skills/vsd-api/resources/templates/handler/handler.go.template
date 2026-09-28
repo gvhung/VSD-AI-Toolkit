@@ -1,0 +1,330 @@
+package handler
+
+import (
+	"errors"
+	"net/http"
+	"strconv"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+
+	"{{MODULE_ROOT}}/internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/model"
+	"{{MODULE_ROOT}}/internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/service"
+)
+
+// Handler handles HTTP requests for {{ComponentPascal}}
+type Handler struct {
+	svc    service.I{{ComponentPascal}}Service
+	gormDB *gorm.DB
+}
+
+// NewHandler initializes a new {{ComponentPascal}} HTTP handler
+func NewHandler(svc service.I{{ComponentPascal}}Service, gormDB *gorm.DB) *Handler {
+	return &Handler{
+		svc:    svc,
+		gormDB: gormDB,
+	}
+}
+
+// getTenantID extracts tenant_id from verified JWT context or X-Tenant-ID header
+func (h *Handler) getTenantID(c *gin.Context) string {
+	tenantID := c.GetString("tenant_id")
+	if tenantID == "" {
+		tenantID = c.GetHeader("X-Tenant-ID")
+	}
+	return tenantID
+}
+
+// getUserID extracts user_id from verified JWT context
+func (h *Handler) getUserID(c *gin.Context) *string {
+	userID := c.GetString("user_id")
+	if userID == "" {
+		userID = c.GetString("sub")
+	}
+	if userID != "" {
+		return &userID
+	}
+	return nil
+}
+
+// executeWithTenant executes an operation inside a PostgreSQL RLS transaction
+func (h *Handler) executeWithTenant(c *gin.Context, fn func(tx *gorm.DB) (interface{}, error)) (interface{}, error) {
+	tenantID := h.getTenantID(c)
+	var result interface{}
+
+	err := h.gormDB.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
+		if tenantID != "" {
+			// Set PostgreSQL Row-Level Security session variable with parameter binding
+			if err := tx.Exec("SET LOCAL app.current_tenant = ?", tenantID).Error; err != nil {
+				return err
+			}
+		}
+		res, err := fn(tx)
+		if err != nil {
+			return err
+		}
+		result = res
+		return nil
+	})
+
+	return result, err
+}
+
+// GetAll godoc
+// @Summary Lấy tất cả danh sách {{ComponentVN}}
+// @Description Lấy toàn bộ bản ghi {{ComponentVN}} trong phạm vi khách thuê
+// @Tags {{ComponentPascal}}
+// @Produce json
+// @Success 200 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}} [get]
+func (h *Handler) GetAll(c *gin.Context) {
+	data, err := h.executeWithTenant(c, func(tx *gorm.DB) (interface{}, error) {
+		return h.svc.GetAll(c.Request.Context(), tx)
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Lỗi khi truy vấn dữ liệu",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    data,
+	})
+}
+
+// Paginate godoc
+// @Summary Phân trang danh sách {{ComponentVN}}
+// @Description Phân trang và tìm kiếm theo từ khóa
+// @Tags {{ComponentPascal}}
+// @Produce json
+// @Param page query int false "Trang hiện tại (default 1)"
+// @Param page_size query int false "Số bản ghi mỗi trang (default 20)"
+// @Param search query string false "Từ khóa tìm kiếm theo mã hoặc tên"
+// @Success 200 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/paginate [get]
+func (h *Handler) Paginate(c *gin.Context) {
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	search := c.Query("search")
+
+	type PaginateResult struct {
+		Items []*model.{{EntityName}} `json:"items"`
+		Total int64                   `json:"total"`
+	}
+
+	res, err := h.executeWithTenant(c, func(tx *gorm.DB) (interface{}, error) {
+		items, total, err := h.svc.Paginate(c.Request.Context(), tx, page, pageSize, search)
+		if err != nil {
+			return nil, err
+		}
+		return &PaginateResult{Items: items, Total: total}, nil
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Lỗi khi phân trang dữ liệu",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    res,
+	})
+}
+
+// GetByID godoc
+// @Summary Lấy chi tiết {{ComponentVN}} theo ID
+// @Description Truy vấn chi tiết một bản ghi theo UUID
+// @Tags {{ComponentPascal}}
+// @Produce json
+// @Param id path string true "ID bản ghi (UUID)"
+// @Success 200 {object} map[string]interface{}
+// @Failure 404 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/{id} [get]
+func (h *Handler) GetByID(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "ID không hợp lệ"})
+		return
+	}
+
+	data, err := h.executeWithTenant(c, func(tx *gorm.DB) (interface{}, error) {
+		return h.svc.GetByID(c.Request.Context(), tx, id)
+	})
+
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Bản ghi không tồn tại hoặc đã bị xóa",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    data,
+	})
+}
+
+// Create godoc
+// @Summary Tạo mới {{ComponentVN}}
+// @Description Thêm mới bản ghi vào hệ thống
+// @Tags {{ComponentPascal}}
+// @Accept json
+// @Produce json
+// @Param body body model.{{EntityName}} true "Dữ liệu tạo mới"
+// @Success 201 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}} [post]
+func (h *Handler) Create(c *gin.Context) {
+	var input model.{{EntityName}}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Định dạng dữ liệu không hợp lệ",
+		})
+		return
+	}
+
+	// IDOR Protection: Force tenant_id from validated token
+	tenantID := h.getTenantID(c)
+	input.TenantID = tenantID
+	if userID := h.getUserID(c); userID != nil {
+		input.CreatedBy = userID
+		input.UpdatedBy = userID
+	}
+
+	res, err := h.executeWithTenant(c, func(tx *gorm.DB) (interface{}, error) {
+		return h.svc.Create(c.Request.Context(), tx, &input)
+	})
+
+	if err != nil {
+		var valErr *model.ValidationError
+		if errors.As(err, &valErr) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"errors":  valErr.Errors,
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Không thể tạo mới bản ghi",
+		})
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{
+		"success": true,
+		"message": "Tạo mới thành công",
+		"data":    res,
+	})
+}
+
+// Update godoc
+// @Summary Cập nhật {{ComponentVN}}
+// @Description Cập nhật thông tin bản ghi theo ID
+// @Tags {{ComponentPascal}}
+// @Accept json
+// @Produce json
+// @Param id path string true "ID bản ghi (UUID)"
+// @Param body body model.{{EntityName}} true "Dữ liệu cập nhật"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/{id} [put]
+func (h *Handler) Update(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "ID không hợp lệ"})
+		return
+	}
+
+	var input model.{{EntityName}}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Định dạng dữ liệu không hợp lệ",
+		})
+		return
+	}
+
+	// IDOR Protection: Override tenant_id with context tenant
+	tenantID := h.getTenantID(c)
+	input.TenantID = tenantID
+	if userID := h.getUserID(c); userID != nil {
+		input.UpdatedBy = userID
+	}
+
+	res, err := h.executeWithTenant(c, func(tx *gorm.DB) (interface{}, error) {
+		return h.svc.Update(c.Request.Context(), tx, id, &input)
+	})
+
+	if err != nil {
+		var valErr *model.ValidationError
+		if errors.As(err, &valErr) {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"errors":  valErr.Errors,
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Không thể cập nhật bản ghi",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Cập nhật thành công",
+		"data":    res,
+	})
+}
+
+// Delete godoc
+// @Summary Xóa mềm {{ComponentVN}}
+// @Description Đánh dấu xóa bản ghi (soft delete)
+// @Tags {{ComponentPascal}}
+// @Produce json
+// @Param id path string true "ID bản ghi (UUID)"
+// @Success 200 {object} map[string]interface{}
+// @Failure 400 {object} map[string]interface{}
+// @Failure 500 {object} map[string]interface{}
+// @Router /api/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/{id} [delete]
+func (h *Handler) Delete(c *gin.Context) {
+	id := strings.TrimSpace(c.Param("id"))
+	if id == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "ID không hợp lệ"})
+		return
+	}
+
+	_, err := h.executeWithTenant(c, func(tx *gorm.DB) (interface{}, error) {
+		return nil, h.svc.Delete(c.Request.Context(), tx, id)
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Không thể xóa bản ghi",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Xóa thành công",
+	})
+}

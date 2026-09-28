@@ -1,0 +1,41 @@
+package {{COMPONENT}}
+
+import (
+	"log"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+
+	"{{MODULE_ROOT}}/internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/handler"
+	"{{MODULE_ROOT}}/internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/model"
+	"{{MODULE_ROOT}}/internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/query"
+	"{{MODULE_ROOT}}/internal/{{SUBSYSTEM}}/{{GROUP}}/{{COMPONENT}}/service"
+)
+
+// RegisterRoutes registers all RESTful endpoints for {{ComponentPascal}}
+func RegisterRoutes(rg *gin.RouterGroup, gormDB *gorm.DB) {
+	// Tự động kiểm tra và tạo bảng cơ sở dữ liệu nếu chưa tồn tại
+	if err := gormDB.AutoMigrate(&model.{{EntityName}}{}); err != nil {
+		log.Printf("⚠️ [{{EntityName}}] AutoMigrate error: %v\n", err)
+	} else {
+		if rlsErr := gormDB.Exec("CALL apply_rls_for_tables(ARRAY['{{TABLE_NAME}}'])").Error; rlsErr != nil {
+			log.Printf("⚠️ [{{EntityName}}] Áp dụng RLS thất bại: %v\n", rlsErr)
+		} else {
+			log.Printf("✅ [{{EntityName}}] Đã áp dụng RLS thành công (CALL apply_rls_for_tables)\n")
+		}
+	}
+
+	q := query.NewQuery()
+	svc := service.NewService(q)
+	h := handler.NewHandler(svc, gormDB)
+
+	group := rg.Group("/{{COMPONENT}}")
+	{
+		group.GET("", h.GetAll)
+		group.GET("/paginate", h.Paginate)
+		group.GET("/:id", h.GetByID)
+		group.POST("", h.Create)
+		group.PUT("/:id", h.Update)
+		group.DELETE("/:id", h.Delete)
+	}
+}

@@ -1,0 +1,110 @@
+# Đặc Tả Giao Diện Người Dùng (UI Specs): {{ComponentVN}} ({{ComponentPascal}})
+
+Tài liệu này xác định chi tiết đặc tả giao diện, cấu trúc Form, trường dữ liệu, validation, phân quyền MenuAuth RBAC và luồng tương tác cho thành phần **{{ComponentPascal}}** thuộc phân hệ `{{subsystem}}`, nhóm `{{group}}`.
+
+---
+
+## 1. Thông Tin Định Danh UI
+
+- **Phân hệ (Subsystem)**: `{{subsystem}}`
+- **Nhóm chức năng (Group)**: `{{group}}`
+- **Thành phần (Component)**: `{{component}}`
+- **Tên thực thể (Entity Name)**: `{{EntityName}}`
+- **Tên hiển thị tiếng Việt**: `{{ComponentVN}}`
+- **Table Selector**: `{{TableSelector}}` (chuẩn: `{{subsystem}}-{{group}}-{{component}}`)
+- **Modal Selector**: `{{ModalSelector}}` (chuẩn: `{{subsystem}}-{{group}}-modal-{{component}}`)
+- **Đường dẫn Route**: `{{group}}/{{component}}`
+- **Service Phụ Trách**: `{{GroupPascal}}Service` (`src/app/modules/{{subsystem}}/{{group}}.service.ts`)
+
+---
+
+## 2. Đặc Tả Thực Thể & Decorator Form (`{{subsystem}}.type.ts`)
+
+### 2.1 Cấu Trúc Class Kế Thừa `BaseEntity`
+```typescript
+export class {{EntityName}} extends BaseEntity {
+  @FormField({
+    label: 'Mã {{ComponentVN}}',
+    required: true,
+    uppercase: true,
+    noAccent: true,
+    noSpecialChar: true,
+    maxLength: 50
+  })
+  code!: string;
+
+  @FormField({
+    label: 'Tên {{ComponentVN}}',
+    required: true,
+    maxLength: 255
+  })
+  name!: string;
+
+  @FormField({
+    label: 'Thứ tự',
+    type: 'number',
+    defaultValue: 0
+  })
+  order_index?: number;
+
+  @FormField({
+    label: 'Mô tả',
+    maxLength: 2000
+  })
+  description?: string;
+}
+```
+
+### 2.2 Quy Chuẩn Làm Sạch Dữ Liệu Form (Data Sanitization)
+- **Cưỡng chế Text Transform**: Sử dụng hàm tiện ích `enforceTextTransform(this.form, configFields, this._destroyRef)`:
+  - `uppercase: true`: Tự động in hoa mã.
+  - `noAccent: true`: Tự động loại bỏ dấu tiếng Việt khỏi mã.
+  - `noSpecialChar: true`: Cấm ký tự đặc biệt, chỉ cho phép ký tự chữ cái, số và dấu gạch dưới `_`.
+- **Hiển thị lỗi Validation**: Sử dụng `FormErrorUtil.showFormErrors` kết hợp `FormErrorUtil.applyServerErrors` khi nhận phản hồi lỗi `400 Bad Request` từ backend.
+
+---
+
+## 3. Đặc Tả Màn Hình Danh Sách (Master Table View)
+
+### 3.1 Cột Hiển Thị Trên Bảng (`displayedColumns`)
+| Cột | Tên Hiển Thị | Độ Rộng | Thuộc Tính Căn Lề | Chức Năng |
+|---|---|---|---|---|
+| `stt` | STT | 64px | Căn giữa | Tính theo `pageIndex * pageSize + i + 1` |
+| `code` | Mã | 160px | Căn trái, font đậm | Có sắp xếp (`mat-sort-header`) |
+| `name` | Tên {{ComponentVN}} | Tự co giãn | Căn trái | Có sắp xếp (`mat-sort-header`) |
+| `order_index` | Thứ tự | 96px | Căn giữa | Hiển thị số thứ tự |
+| `actions` | Thao tác | 112px | Căn giữa | Các nút Chỉnh sửa / Xóa bảo vệ bởi RBAC |
+
+### 3.2 Tương Tác & Hành Vi Người Dùng
+1. **Tìm kiếm thời gian thực (Real-time Search)**:
+   - Sử dụng `Subject<string>` qua pipeline `debounceTime(300)` và `distinctUntilChanged()`.
+   - Tự động reset về trang đầu tiên (`pageIndex = 0`) khi tìm kiếm.
+2. **Đồng bộ làm mới dữ liệu (Refresh Signal Bus)**:
+   - Đăng ký nhận tín hiệu từ `_service.refresh{{ComponentPascal}}s$` để tự động reload bảng sau khi Modal thêm mới hoặc cập nhật thành công.
+3. **Xác nhận xóa bản ghi**:
+   - Sử dụng `FuseConfirmationService` hiển thị hộp thoại xác nhận trước khi gọi API xóa.
+   - Sau khi xóa thành công: Hiển thị `MatSnackBar` và reload dữ liệu.
+
+---
+
+## 4. Đặc Tả Hộp Thoại Nhập Liệu (Modal Form Dialog)
+
+- **Kích thước modal**: `width: '600px'`.
+- **Trạng thái**:
+  - Thêm mới: Tiêu đề `"Thêm mới {{ComponentVN}}"`, trường `code` cho phép nhập liệu. Có nút *"Lưu & Thêm mới"*.
+  - Chỉnh sửa: Tiêu đề `"Cập nhật {{ComponentVN}}"`, trường `code` ở chế độ chỉ đọc (`[readonly]="isEdit"`).
+- **Phản hồi lỗi máy chủ**: Bắt lỗi `err.status === 400` và gắn lỗi chi tiết vào từng trường form tương ứng thông qua `FormErrorUtil.applyServerErrors`.
+
+---
+
+## 5. An Ninh Giao Diện & Phân Quyền (RBAC)
+
+1. **MenuAuth RBAC Buttons**:
+   - Nút Thêm mới: `*ngIf="permissionService.hasPermission('ADD')"`
+   - Nút Chỉnh sửa: `*ngIf="permissionService.hasPermission('EDIT')"`
+   - Nút Xóa: `*ngIf="permissionService.hasPermission('DELETE')"`
+2. **Route Guard**:
+   - Khóa route `{{group}}/{{component}}` bằng `canActivate: [NavigationPermissionGuard]`.
+3. **Chống XSS & Rò Rỉ Bí Mật**:
+   - Sử dụng 100% Angular data binding. Tuyệt đối không gọi `bypassSecurityTrustHtml`.
+   - Base API URL gọi qua `BackEndConfig.API_URL`.

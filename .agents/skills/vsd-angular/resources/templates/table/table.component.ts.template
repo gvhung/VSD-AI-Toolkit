@@ -1,0 +1,177 @@
+import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { MatTableDataSource, MatTableModule } from '@angular/material/table';
+import { MatPaginator, MatPaginatorModule, PageEvent } from '@angular/material/paginator';
+import { MatSort, MatSortModule } from '@angular/material/sort';
+import { MatDialog } from '@angular/material/dialog';
+import { MatIconModule } from '@angular/material/icon';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { FormsModule } from '@angular/forms';
+import { Subject, takeUntil, debounceTime, distinctUntilChanged } from 'rxjs';
+import { FuseConfirmationService } from '@fuse/services/confirmation';
+import { PermissionService } from 'app/modules/admin/module/permission.service';
+import { PageHeaderComponentTsComponent } from 'app/modules/admin/common/page-header/page-header.component.ts/page-header.component.ts.component';
+import { CustomPaginator, PaginatorDefaultOptions } from 'app/core/paginator/paginator.config';
+import { {{GroupPascal}}Service } from '../{{group}}.service';
+import { {{EntityName}} } from '../../{{subsystem}}.type';
+import { Modal{{ComponentPascal}}Component } from '../modal/modal-{{component}}/modal-{{component}}.component';
+
+@Component({
+  selector: '{{TableSelector}}',
+  templateUrl: './{{subsystem}}-{{component}}.component.html',
+  styleUrls: ['./{{subsystem}}-{{component}}.component.scss'],
+  standalone: true,
+  imports: [
+    CommonModule,
+    FormsModule,
+    MatTableModule,
+    MatPaginatorModule,
+    MatSortModule,
+    MatIconModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    PageHeaderComponentTsComponent
+  ]
+})
+export class {{SubsystemPascal}}{{ComponentPascal}}Component implements OnInit, OnDestroy {
+  @ViewChild(MatPaginator) paginator!: MatPaginator;
+  @ViewChild(MatSort) sort!: MatSort;
+
+  displayedColumns: string[] = ['stt', 'code', 'name', 'order_index', 'actions'];
+  dataSource: MatTableDataSource<{{EntityName}}> = new MatTableDataSource<{{EntityName}}>([]);
+
+  totalItems: number = 0;
+  pageSize: number = 20;
+  pageIndex: number = 0;
+  searchKeyword: string = '';
+  searchSubject: Subject<string> = new Subject<string>();
+
+  private _unsubscribeAll: Subject<void> = new Subject<void>();
+
+  constructor(
+    private _service: {{GroupPascal}}Service,
+    private _dialog: MatDialog,
+    private _fuseConfirmationService: FuseConfirmationService,
+    public permissionService: PermissionService,
+    private _snackBar: MatSnackBar
+  ) {}
+
+  ngOnInit(): void {
+    // 1. Đăng ký nhận dữ liệu từ stream data$ (luôn là Array)
+    this._service.data$
+      .pipe(takeUntil(this._unsubscribeAll))
+      .subscribe(data => {
+        this.dataSource.data = Array.isArray(data) ? data : [];
+      });
+
+    this.loadData();
+
+    // Listen for refresh triggers from modals
+    this._service.refresh{{ComponentPascal}}s$
+      .pipe(takeUntil(this._unsubscribeAll))
+      .subscribe(() => {
+        this.loadData();
+      });
+
+    // Debounced search
+    this.searchSubject
+      .pipe(
+        takeUntil(this._unsubscribeAll),
+        debounceTime(300),
+        distinctUntilChanged()
+      )
+      .subscribe(keyword => {
+        this.searchKeyword = keyword;
+        this.pageIndex = 0;
+        this.loadData();
+      });
+  }
+
+  ngOnDestroy(): void {
+    this._unsubscribeAll.next();
+    this._unsubscribeAll.complete();
+  }
+
+  loadData(): void {
+    this._service.get{{ComponentPascal}}sPaginated({
+      page: this.pageIndex + 1,
+      pageSize: this.pageSize,
+      search: this.searchKeyword
+    }).subscribe({
+      next: (result) => {
+        this.dataSource.data = result.items || [];
+        this.totalItems = result.total || 0;
+      },
+      error: () => {
+        this.dataSource.data = [];
+        this._snackBar.open('Không thể tải dữ liệu danh sách', 'Đóng', { duration: 3000 });
+      }
+    });
+  }
+
+  onPageChange(event: PageEvent): void {
+    this.pageIndex = event.pageIndex;
+    this.pageSize = event.pageSize;
+    this.loadData();
+  }
+
+  onSearch(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.searchSubject.next(input.value.trim());
+  }
+
+  openCreateModal(): void {
+    const dialogRef = this._dialog.open(Modal{{ComponentPascal}}Component, {
+      width: '600px',
+      data: { id: null }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.loadData();
+      }
+    });
+  }
+
+  openEditModal(item: {{EntityName}}): void {
+    const dialogRef = this._dialog.open(Modal{{ComponentPascal}}Component, {
+      width: '600px',
+      data: { id: item.id, item }
+    });
+
+    dialogRef.afterClosed().subscribe(result => {
+      if (result) {
+        this.loadData();
+      }
+    });
+  }
+
+  deleteItem(item: {{EntityName}}): void {
+    const confirm = this._fuseConfirmationService.open({
+      title: 'Xóa bản ghi',
+      message: `Bạn có chắc chắn muốn xóa "${item.name}"? Hành động này không thể hoàn tác!`,
+      actions: {
+        confirm: { label: 'Xóa', color: 'warn' },
+        cancel: { label: 'Hủy' }
+      }
+    });
+
+    confirm.afterClosed().subscribe(result => {
+      if (result === 'confirmed' && item.id) {
+        this._service.delete{{ComponentPascal}}(item.id).subscribe({
+          next: () => {
+            this._snackBar.open('Xóa bản ghi thành công', 'Đóng', { duration: 3000 });
+            this.loadData();
+          },
+          error: () => {
+            this._snackBar.open('Lỗi khi xóa bản ghi', 'Đóng', { duration: 3000 });
+          }
+        });
+      }
+    });
+  }
+}

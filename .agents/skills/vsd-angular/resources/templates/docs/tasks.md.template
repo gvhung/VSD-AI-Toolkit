@@ -1,0 +1,105 @@
+# Bảng Phân Rã Micro-Tasks UI: {{ComponentVN}} ({{ComponentPascal}})
+
+Tài liệu này theo dõi tiến độ thực thi tuần tự 7 micro-tasks theo phương pháp **Spec-Driven Development**, **Ephemeral Test-First biệt lập** và **Continuous Auto-Advance Pipeline** cho component Frontend `{{component}}`.
+
+---
+
+## Bảng Tiến Độ Tổng Thể
+
+- [ ] **Task 1: Đặc Tả Giao Diện & Kế Hoạch Kỹ Thuật (SDD)**
+- [ ] **Task 2: Entity Model & Khai Báo Form Decorator (`{{subsystem}}.type.ts`)**
+- [ ] **Task 3: Ephemeral Test-First Biệt Lập (`{{component}}_service_test.spec.ts`)**
+- [ ] **Task 4: Angular Service & Refresh Signal Bus (`{{group}}.service.ts`)**
+- [ ] **Task 5: Master Table View Component (`{{subsystem}}-{{component}}`)**
+- [ ] **Task 6: Modal Form Dialog Component (`modal-{{component}}`)**
+- [ ] **Task 7: Routing Guard, Cybersecurity Gate Audit & Cleanup Ephemeral Test**
+
+---
+
+## Chi Tiết Từng Micro-Task
+
+### Task 1: Đặc Tả Giao Diện & Kế Hoạch Kỹ Thuật (SDD)
+- **Mục tiêu**: Xây dựng tài liệu đặc tả UI/UX, trường dữ liệu, validation và phân quyền tại `docs/`.
+- **Tệp đầu ra**:
+  - `docs/{{subsystem}}/{{group}}/{{component}}_ui_specs.md`
+  - `docs/{{subsystem}}/{{group}}/{{component}_ui_tasks.md`
+- **Tiêu chí nghiệm thu (DoD)**:
+  - Đầy đủ thông tin định danh, selectors, data contract, decorator rules và quyền RBAC.
+
+---
+
+### Task 2: Entity Model & Khai Báo Form Decorator
+- **Mục tiêu**: Khai báo hoặc cập nhật class thực thể kế thừa `BaseEntity`.
+- **Tệp đầu ra**:
+  - `src/app/modules/{{subsystem}}/{{subsystem}}.type.ts`
+- **Tiêu chí nghiệm thu (DoD)**:
+  - Class `{{EntityName}}` kế thừa `BaseEntity`.
+  - Khai báo đầy đủ `@FormField()` với các cờ `uppercase`, `noAccent`, `noSpecialChar` cho trường mã.
+
+---
+
+### Task 3: Ephemeral Test-First Biệt Lập (TDD RED)
+- **Mục tiêu**: Tạo file kiểm thử dịch vụ tạm thời biệt lập trong thư mục của chính component.
+- **Tệp đầu ra**:
+  - `src/app/modules/{{subsystem}}/{{group}}/{{component}}/{{component}}_service_test.spec.ts`
+- **Header bắt buộc**:
+  ```typescript
+  // EPHEMERAL_TEST_FILE: True
+  // LIFECYCLE: This file is generated strictly for the Frontend TDD Red-Green cycle.
+  // As mandated by VSD-AI-Toolkit DoD rules, this file MUST BE DELETED upon 100% micro-task completion.
+  ```
+- **Tiêu chí nghiệm thu (DoD)**:
+  - Kiểm tra gọi HTTP GET `/paginate` với params `page` và `pageSize`.
+  - Kiểm tra phát tín hiệu qua `refresh{{ComponentPascal}}s$`.
+  - Chạy test ban đầu phản ánh trạng thái RED.
+
+---
+
+### Task 4: Angular Service & Refresh Signal Bus (TDD GREEN)
+- **Mục tiêu**: Cung cấp hoặc bổ sung các phương thức RESTful và Subject trong Service.
+- **Tệp đầu ra**:
+  - `src/app/modules/{{subsystem}}/{{group}}.service.ts`
+- **Tiêu chí nghiệm thu (DoD)**:
+  - Đầy đủ 6 phương thức RESTful: `getAll*`, `get*Paginated`, `get*ById`, `create*`, `update*`, `delete*`.
+  - Quản lý `_refresh{{ComponentPascal}}s = new Subject<void>()`.
+  - Chạy lại test `{{component}_service_test.spec.ts` đạt kết quả GREEN (pass 100%).
+
+---
+
+### Task 5: Master Table View Component
+- **Mục tiêu**: Tạo component danh sách với MatTable, Real-time search và bảo vệ RBAC.
+- **Tệp đầu ra**:
+  - `src/app/modules/{{subsystem}}/{{group}}/{{component}}/{{subsystem}}-{{component}}.component.ts`
+  - `src/app/modules/{{subsystem}}/{{group}}/{{component}}/{{subsystem}}-{{component}}.component.html`
+  - `src/app/modules/{{subsystem}}/{{group}}/{{component}}/{{subsystem}}-{{component}}.component.scss`
+- **Tiêu chí nghiệm thu (DoD)**:
+  - Selector: `{{TableSelector}}`.
+  - Real-time search với `debounceTime(300)` và `distinctUntilChanged()`.
+  - Nút Thêm/Sửa/Xóa bảo vệ qua `permissionService.hasPermission()`.
+  - Xác nhận xóa qua `FuseConfirmationService`.
+
+---
+
+### Task 6: Modal Form Dialog Component
+- **Mục tiêu**: Tạo component hộp thoại nhập liệu Reactive Form với tự động hóa.
+- **Tệp đầu ra**:
+  - `src/app/modules/{{subsystem}}/{{group}}/modal/modal-{{component}}/modal-{{component}}.component.ts`
+  - `src/app/modules/{{subsystem}}/{{group}}/modal/modal-{{component}}/modal-{{component}}.component.html`
+  - `src/app/modules/{{subsystem}}/{{group}}/modal/modal-{{component}}/modal-{{component}}.component.scss`
+- **Tiêu chí nghiệm thu (DoD)**:
+  - Selector: `{{ModalSelector}}`.
+  - Tự động dựng form qua `buildFormFromClass(this._fb, {{EntityName}})`.
+  - Cưỡng chế làm sạch dữ liệu qua `enforceTextTransform`.
+  - Bắt lỗi máy chủ qua `FormErrorUtil.applyServerErrors`.
+
+---
+
+### Task 7: Routing Guard, Cybersecurity Gate Audit & Cleanup Ephemeral Test
+- **Mục tiêu**: Cập nhật định tuyến, quét an ninh và xóa test tạm thời theo DoD.
+- **Tệp đầu ra**:
+  - `src/app/modules/{{subsystem}}/{{subsystem}}-routing.module.ts`
+- **Tiêu chí nghiệm thu (DoD)**:
+  - Gắn `NavigationPermissionGuard` trên route `{{group}}/{{component}}`.
+  - Vượt qua 6/6 cổng an ninh của Anthropic Cybersecurity Gate (Frontend).
+  - **XÓA BỎ DUY NHẤT** file `src/app/modules/{{subsystem}}/{{group}}/{{component}}/{{component}}_service_test.spec.ts`.
+  - Đánh dấu hoàn tất toàn bộ 7 micro-tasks.

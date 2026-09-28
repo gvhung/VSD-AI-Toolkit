@@ -1,0 +1,30 @@
+package {{SUBSYSTEM}}
+
+import (
+	"os"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+
+	"{{MODULE_ROOT}}/internal/presentation/http/middleware"
+	"{{MODULE_ROOT}}/internal/{{SUBSYSTEM}}/{{GROUP}}"
+)
+
+// RegisterRoutes registers all groups and components under the {{SUBSYSTEM}} subsystem
+func RegisterRoutes(r *gin.Engine, db *gorm.DB) {
+	api := r.Group("/api")
+
+	secret, ok := os.LookupEnv("JWT_SECRET")
+	if !ok {
+		secret = ""
+	}
+
+	tenantMiddleware := middleware.TenantMiddleware(db, secret)
+	api.Use(tenantMiddleware)
+	// api.Use(middleware.MenuAuthMiddleware(db))
+
+	subsystemGroup := api.Group("/{{SUBSYSTEM}}")
+	{
+		{{GROUP}}.RegisterRoutes(subsystemGroup, db)
+	}
+}

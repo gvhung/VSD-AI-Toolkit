@@ -1,0 +1,97 @@
+// EPHEMERAL_TEST_FILE: True
+// LIFECYCLE: This file is generated strictly for the Frontend TDD Red-Green cycle.
+// As mandated by VSD-AI-Toolkit DoD rules, this file MUST BE DELETED upon 100% micro-task completion.
+
+import { TestBed } from '@angular/core/testing';
+import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
+import { {{GroupPascal}}Service } from './{{group}}.service';
+import { BackEndConfig } from 'app/app.config';
+
+describe('{{GroupPascal}}Service - {{ComponentPascal}} TDD Test Suite (RED to GREEN)', () => {
+  let service: {{GroupPascal}}Service;
+  let httpMock: HttpTestingController;
+  const baseUrl = `${BackEndConfig.API_URL}api/{{subsystem}}/{{group}}/{{component}}`;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      imports: [HttpClientTestingModule],
+      providers: [{{GroupPascal}}Service]
+    });
+    service = TestBed.inject({{GroupPascal}}Service);
+    httpMock = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => {
+    httpMock.verify();
+  });
+
+  it('RED: should fetch paginated items and unwrap envelope correctly', () => {
+    const mockResponse = {
+      success: true,
+      data: {
+        items: [{ id: 'mock-uuid-1', code: 'TEST_01', name: 'Đơn vị thử nghiệm' }],
+        total: 1
+      }
+    };
+
+    service.get{{ComponentPascal}}sPaginated({ page: 1, pageSize: 20 }).subscribe(res => {
+      expect(res.items.length).toBe(1);
+      expect(res.total).toBe(1);
+      expect(res.items[0].code).toBe('TEST_01');
+    });
+
+    const req = httpMock.expectOne(`${baseUrl}/paginate?page=1&page_size=20`);
+    expect(req.request.method).toBe('GET');
+    req.flush(mockResponse);
+  });
+
+  it('RED: should unwrap getAll items and sync array to data$ stream', (done) => {
+    const mockResponse = {
+      success: true,
+      data: [{ id: 'mock-uuid-1', code: 'TEST_01', name: 'Đơn vị thử nghiệm' }]
+    };
+
+    service.getAll{{ComponentPascal}}s().subscribe(items => {
+      expect(Array.isArray(items)).toBeTrue();
+      expect(items.length).toBe(1);
+      expect(items[0].code).toBe('TEST_01');
+    });
+
+    const req = httpMock.expectOne(baseUrl);
+    expect(req.request.method).toBe('GET');
+    req.flush(mockResponse);
+
+    service.data$.subscribe(data => {
+      expect(Array.isArray(data)).toBeTrue();
+      if (data.length > 0) {
+        expect(data[0].code).toBe('TEST_01');
+        done();
+      }
+    });
+  });
+
+  it('RED: should support backward compatibility with raw array responses', () => {
+    const rawArrayResponse = [
+      { id: 'mock-legacy-1', code: 'LEGACY_01', name: 'Dữ liệu phân hệ cũ' }
+    ];
+
+    service.getAll{{ComponentPascal}}s().subscribe(items => {
+      expect(Array.isArray(items)).toBeTrue();
+      expect(items.length).toBe(1);
+      expect(items[0].code).toBe('LEGACY_01');
+    });
+
+    const req = httpMock.expectOne(baseUrl);
+    expect(req.request.method).toBe('GET');
+    req.flush(rawArrayResponse);
+  });
+
+  it('RED: should handle refresh subject notification correctly', (done) => {
+    service.refresh{{ComponentPascal}}s$.subscribe(() => {
+      expect(true).toBeTrue();
+      done();
+    });
+
+    service.triggerRefresh{{ComponentPascal}}s();
+  });
+});
